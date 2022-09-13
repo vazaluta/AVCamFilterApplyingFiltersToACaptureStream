@@ -345,8 +345,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         
-        coordinator.animate(
-            alongsideTransition: { _ in
+        coordinator.animate( alongsideTransition: { _ in
                 let interfaceOrientation = UIApplication.shared.statusBarOrientation
                 self.statusBarOrientation = interfaceOrientation
                 self.sessionQueue.async {
@@ -371,8 +370,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
                         }
                     }
                 }
-        }, completion: nil
-        )
+        }, completion: nil)
     }
     
     // MARK: - KVO and Notifications
@@ -530,7 +528,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
         
         if depthVisualizationEnabled {
             // Use an AVCaptureDataOutputSynchronizer to synchronize the video data and depth data outputs.
-            // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the "master" output.
+            // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the main output.
             outputSynchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [videoDataOutput, depthDataOutput])
             if let unwrappedOutputSynchronizer = outputSynchronizer {
                 unwrappedOutputSynchronizer.setDelegate(self, queue: dataOutputQueue)
@@ -887,7 +885,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             
             if depthEnabled {
                 // Use an AVCaptureDataOutputSynchronizer to synchronize the video data and depth data outputs.
-                // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the "master" output.
+                // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the main output.
                 self.outputSynchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [self.videoDataOutput, self.depthDataOutput])
                 
                 if let unwrappedOutputSynchronizer = self.outputSynchronizer {

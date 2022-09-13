@@ -1,22 +1,22 @@
-# AVCamFilter: Applying Filters to a Capture Stream
+# AVCamFilter: Applying filters to a capture stream
 
-Render a capture stream with rose-colored filtering and depth effects.
+Render a capture stream with rose-tinted filtering and depth effects.
 
 ## Overview
 
 AVCamFilter is a sample camera app that takes photos with filtered effects. It shows the user a live preview of the scene with the effect rendered on top.
 
-![Screenshots of AVCamFilter with the rose-colored filter applied to the camera preview.](Documentation/RosyFilterSS.png)
+![Screenshots of AVCamFilter with the rose-tinted filter applied to the camera preview.](Documentation/RosyFilterSS.png)
 
-This sample shows you how to apply a filter with a rose-colored lens using Core Image and Metal. It also shows how to render depth and a smoothened depth effect on top of the capture stream using a grayscale filter. Finally, AVCamFilter allows the user to modulate the frame rate and the effect through sliders.
+This sample shows you how to apply a filter with a rose-tinted lens using Core Image and Metal. It also shows how to render depth and a smoothened depth effect on top of the capture stream using a grayscale filter. Finally, AVCamFilter allows the user to modulate the frame rate and the effect through sliders.
 
-## Getting Started
+## Getting started
 
 Build and run AVCamFilter on a device running iOS 12 or later. This sample won't work in Simulator. Also, because Metal won’t compile on Simulator, set the build target and schema to a device, or “Generic iOS Device,” before building. The depth effect also won't show on devices that don't support depth capture, such as the iPhone 6S and before.
 
-## Show the Camera Preview in a Metal View
+## Show the camera preview in a Metal view
 
-AVCamFilter uses `PreviewMetalView`, a custom subclass of [`MTKView`](https://developer.apple.com/documentation/metalkit/mtkview), instead of a [`UIView`](https://developer.apple.com/documentation/uikit/uiview) as its preview view, because the standard [`AVCaptureVideoPreviewLayer`](https://developer.apple.com/documentation/avfoundation/avcapturevideopreviewlayer) gets its frames directly from the [`AVCaptureSession`](https://developer.apple.com/documentation/avfoundation/avcapturesession), with no opportunity for the app to apply effects to those frames. By subclassing `MTKView`, AVCamFilter can apply the rose-colored filter and depth grayscale filter before rendering each frame.
+AVCamFilter uses `PreviewMetalView`, a custom subclass of [`MTKView`](https://developer.apple.com/documentation/metalkit/mtkview), instead of a [`UIView`](https://developer.apple.com/documentation/uikit/uiview) as its preview view, because the standard [`AVCaptureVideoPreviewLayer`](https://developer.apple.com/documentation/avfoundation/avcapturevideopreviewlayer) gets its frames directly from the [`AVCaptureSession`](https://developer.apple.com/documentation/avfoundation/avcapturesession), with no opportunity for the app to apply effects to those frames. By subclassing `MTKView`, AVCamFilter can apply the rose-tinted filter and depth grayscale filter before rendering each frame.
 
 The `PreviewMetalView` defines its rendering behavior in `draw`. It creates a Metal texture from the image buffer, so it can transform and render that texture to the image:
 
@@ -40,9 +40,9 @@ CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
 ```
 [View in Source](x-source-tag://DrawMetalTexture)
 
-## Create a Filter Renderer
+## Create a filter renderer
 
-The custom `FilterRenderer` class serves as the parent for all rendering classes, such as the rose-colored filter and the grayscale converter. `RosyMetalRenderer` and `DepthToGrayscaleConverter` are both subclasses of `FilterRenderer` which provide specific filtering functionality.
+The custom `FilterRenderer` class serves as the parent for all rendering classes, such as the rose-tinted filter and the grayscale converter. `RosyMetalRenderer` and `DepthToGrayscaleConverter` are both subclasses of `FilterRenderer` which provide specific filtering functionality.
 
 `FilterRenderer` encapsulates all the resources and functions necessary to render an effect to the image. For example, it allocates a pool of output buffers for rendering:
 
@@ -80,9 +80,9 @@ var inputFormatDescription: CMFormatDescription? { get }
 func render(pixelBuffer: CVPixelBuffer) -> CVPixelBuffer?
 ```
 
-## Apply a Rose-Colored Filter
+## Apply a rose-tinted filter
 
-AVCamFilter applies a rose-colored filter on top of the camera stream in two ways:
+AVCamFilter applies a rose-tinted filter on top of the camera stream in two ways:
 
 * `RosyCIRenderer` applies a Core Image `CIColorMatrix` filter to the input buffer.
 
@@ -135,7 +135,7 @@ commandBuffer.commit()
 ```
 [View in Source](x-source-tag://FilterMetalRosy)
 
-The function, `RosyEffect.metal`, sets the output color of a pixel to its input color, so most of the image content remains the same, resulting in a transparent effect. However, the kernel excludes the green component, giving the image a rose-colored appearance:
+The function, `RosyEffect.metal`, sets the output color of a pixel to its input color, so most of the image content remains the same, resulting in a transparent effect. However, the kernel excludes the green component, giving the image a rose-tinted appearance:
 
 ```
 kernel void rosyEffect(texture2d<half, access::read>  inputTexture  [[ texture(0) ]],
@@ -158,7 +158,7 @@ kernel void rosyEffect(texture2d<half, access::read>  inputTexture  [[ texture(0
 
 For more information about setting up a Metal compute command encoder, see [MTLComputeCommandEncoder](https://developer.apple.com/documentation/metal/mtlcomputecommandencoder).
 
-## Vary the Mix Factor
+## Vary the mix factor
 
 When the user tweaks the “MixFactor” slider, AVCamFilter modulates the intensity of the filter’s mixture:
 
@@ -183,7 +183,9 @@ commandEncoder.setVertexBuffer(fullRangeVertexBuffer, offset: 0, index: 0)
 commandEncoder.setFragmentTexture(inputTexture0, index: 0)
 commandEncoder.setFragmentTexture(inputTexture1, index: 1)
 commandEncoder.setFragmentSamplerState(sampler, index: 0)
-commandEncoder.setFragmentBytes(UnsafeMutableRawPointer(&parameters), length: MemoryLayout<MixerParameters>.size, index: 0)
+withUnsafeMutablePointer(to: &parameters) { parametersRawPointer in
+    commandEncoder.setFragmentBytes(parametersRawPointer, length: MemoryLayout<MixerParameters>.size, index: 0)
+}
 commandEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
 commandEncoder.endEncoding()
 ```
@@ -207,7 +209,7 @@ fragment half4 fragmentMixer( VertexIO        inputFragment    [[ stage_in ]],
 }
 ```
 
-## Stream Depth Data
+## Stream depth data
 
 AVCamFilter streams depth data in addition to RGB video by maintaining buffers dedicated to depth information. The `CameraViewController` refreshes these buffers by adhering to the [`AVCaptureDepthDataOutputDelegate`](https://developer.apple.com/documentation/avfoundation/avcapturedepthdataoutputdelegate) protocol and implementing the delegate method [`depthDataOutput(_:didOutput:timestamp:connection:)`](https://developer.apple.com/documentation/avfoundation/avcapturedepthdataoutputdelegate/2873866-depthdataoutput):
 
@@ -224,7 +226,7 @@ if let unwrappedDepthFormatDescription = depthFormatDescription {
 
 `outputRetainedBufferCountHint` is the number of pixel buffers the renderer retains as it draws the scene. AVCamFilter’s depth converter preallocates its buffers with an `outputRetainedBufferCountHint` of 2 frames of latency to cover the `dispatch_async` call.
 
-The `DepthToGrayscaleConverter` class converts depth values to grayscale pixels in the preview. Like the rose-colored filter, `DepthToGrayscaleConverter` relies on a Metal function, `DepthToGrayscale.metal`, to perform texture transformations:
+The `DepthToGrayscaleConverter` class converts depth values to grayscale pixels in the preview. Like the rose-tinted filter, `DepthToGrayscaleConverter` relies on a Metal function, `DepthToGrayscale.metal`, to perform texture transformations:
 
 ```
 kernel void depthToGrayscale(texture2d<float, access::read> inputTexture   [[ texture(0) ]],
@@ -248,7 +250,7 @@ kernel void depthToGrayscale(texture2d<float, access::read> inputTexture   [[ te
 }
 ```
 
-## Smooth Depth Data
+## Smooth depth data
 
 Without smoothing, the depth data in each frame may have gaps or holes. Smoothing the depth data reduces the effect of frame-to-frame discrepancies by interpolating previous and subsequent frames to fill in the holes. To achieve this smoothing in code, set a parameter on [`AVCaptureDepthDataOutput`](https://developer.apple.com/documentation/avfoundation/avcapturedepthdataoutput):
 
@@ -259,7 +261,7 @@ sessionQueue.async {
 ```
 [View in Source](x-source-tag://SmoothDepthData)
 
-## Modulate Frame Rate
+## Modulate frame rate
 
 AVCamFilter also shows how to change the frame rate at which the camera delivers depth data. When the user moves the “FPS” (frames per second) slider, the app converts this user-facing representation of frame rate to its inverse, frame duration, for setting the video device's  [`activeDepthDataMinFrameDuration`](https://developer.apple.com/documentation/avfoundation/avcapturedevice/2968215-activedepthdataminframeduration) accordingly:
 

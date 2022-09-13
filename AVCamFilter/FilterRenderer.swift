@@ -7,7 +7,7 @@ Filter renderer protocol.
 
 import CoreMedia
 
-protocol FilterRenderer: class {
+protocol FilterRenderer: AnyObject {
     
     var description: String { get }
     

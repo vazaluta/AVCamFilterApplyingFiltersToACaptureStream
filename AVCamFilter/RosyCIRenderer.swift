@@ -2,7 +2,7 @@
 See LICENSE folder for this sample’s licensing information.
 
 Abstract:
-The rosy-colored filter renderer, implemented with Core Image.
+The rosy-tinted filter renderer, implemented with Core Image.
 */
 
 import CoreMedia
