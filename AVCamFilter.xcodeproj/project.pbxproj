@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2608B7DB1E70937A00A7310F /* RosyMetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2608B7DA1E70937A00A7310F /* RosyMetalRenderer.swift */; };
-		2672370C1E79BF6E003D2EAA /* RosyEffect.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2672370B1E79BF6E003D2EAA /* RosyEffect.metal */; };
 		267ED8501ED7974A00898078 /* minMaxFromBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = 267ED84E1ED7965B00898078 /* minMaxFromBuffer.m */; };
 		E422DFC01CEF894F0047D7A4 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = E422DFBE1CEF894F0047D7A4 /* Main.storyboard */; };
 		E422DFC21CEF894F0047D7A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E422DFC11CEF894F0047D7A4 /* Assets.xcassets */; };
@@ -22,8 +20,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2608B7DA1E70937A00A7310F /* RosyMetalRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RosyMetalRenderer.swift; sourceTree = "<group>"; };
-		2672370B1E79BF6E003D2EAA /* RosyEffect.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = RosyEffect.metal; sourceTree = "<group>"; };
 		267ED84D1ED7965A00898078 /* AVCamFilter-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AVCamFilter-Bridging-Header.h"; sourceTree = "<group>"; };
 		267ED84E1ED7965B00898078 /* minMaxFromBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = minMaxFromBuffer.m; sourceTree = "<group>"; };
 		267ED84F1ED7965B00898078 /* minMaxFromBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = minMaxFromBuffer.h; sourceTree = "<group>"; };
@@ -66,7 +62,6 @@
 			isa = PBXGroup;
 			children = (
 				E4A8A1411CF6188A006823AB /* PassThrough.metal */,
-				2672370B1E79BF6E003D2EAA /* RosyEffect.metal */,
 			);
 			path = Shaders;
 			sourceTree = "<group>";
@@ -106,7 +101,6 @@
 				E46129031CF4C0B8004FE176 /* PreviewMetalView.swift */,
 				E4E160DA1D00979000C83A5A /* FilterRenderer.swift */,
 				E4E160DC1D0099F100C83A5A /* RosyCIRenderer.swift */,
-				2608B7DA1E70937A00A7310F /* RosyMetalRenderer.swift */,
 				267ED84F1ED7965B00898078 /* minMaxFromBuffer.h */,
 				267ED84E1ED7965B00898078 /* minMaxFromBuffer.m */,
 				2672370F1E79BFD1003D2EAA /* Shaders */,
@@ -196,12 +190,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				E4E160DB1D00979000C83A5A /* FilterRenderer.swift in Sources */,
-				2608B7DB1E70937A00A7310F /* RosyMetalRenderer.swift in Sources */,
 				E4E160DD1D0099F100C83A5A /* RosyCIRenderer.swift in Sources */,
 				E4A8A1421CF6188A006823AB /* PassThrough.metal in Sources */,
 				E422DFCF1CEF8AF50047D7A4 /* AppDelegate.swift in Sources */,
 				267ED8501ED7974A00898078 /* minMaxFromBuffer.m in Sources */,
-				2672370C1E79BF6E003D2EAA /* RosyEffect.metal in Sources */,
 				E46129041CF4C0B8004FE176 /* PreviewMetalView.swift in Sources */,
 				E422DFCE1CEF8AF50047D7A4 /* CameraViewController.swift in Sources */,
 			);
