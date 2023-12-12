@@ -15,8 +15,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     
     // MARK: - Properties
     
-    @IBOutlet weak private var cameraButton: UIButton!
-    
     @IBOutlet weak private var photoButton: UIButton!
     
     @IBOutlet weak private var resumeButton: UIButton!
@@ -30,26 +28,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     @IBOutlet weak private var videoFilterButton: UIButton!
     
     private var videoFilterOn: Bool = false
-    
-    @IBOutlet weak private var depthVisualizationButton: UIButton!
-    
-    private var depthVisualizationOn: Bool = false
-    
-    @IBOutlet weak private var depthSmoothingButton: UIButton!
-    
-    private var depthSmoothingOn: Bool = false
-    
-    @IBOutlet weak private var mixFactorNameLabel: UILabel!
-    
-    @IBOutlet weak private var mixFactorValueLabel: UILabel!
-    
-    @IBOutlet weak private var mixFactorSlider: UISlider!
-    
-    @IBOutlet weak private var depthDataMaxFrameRateNameLabel: UILabel!
-    
-    @IBOutlet weak private var depthDataMaxFrameRateValueLabel: UILabel!
-    
-    @IBOutlet weak private var depthDataMaxFrameRateSlider: UISlider!
     
     private enum SessionSetupResult {
         case success
@@ -72,19 +50,13 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     
     private let videoDataOutput = AVCaptureVideoDataOutput()
     
-    private let depthDataOutput = AVCaptureDepthDataOutput()
-    
     private var outputSynchronizer: AVCaptureDataOutputSynchronizer?
     
     private let photoOutput = AVCapturePhotoOutput()
     
-    private let filterRenderers: [FilterRenderer] = [RosyMetalRenderer(), RosyCIRenderer()]
+    private let filterRenderers: [FilterRenderer] = [RosyCIRenderer()]
     
-    private let photoRenderers: [FilterRenderer] = [RosyMetalRenderer(), RosyCIRenderer()]
-    
-    private let videoDepthMixer = VideoMixer()
-    
-    private let photoDepthMixer = VideoMixer()
+    private let photoRenderers: [FilterRenderer] = [RosyCIRenderer()]
     
     private var filterIndex: Int = 0
     
@@ -92,15 +64,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     
     private var photoFilter: FilterRenderer?
     
-    private let videoDepthConverter = DepthToGrayscaleConverter()
-    
-    private let photoDepthConverter = DepthToGrayscaleConverter()
-    
-    private var currentDepthPixelBuffer: CVPixelBuffer?
-    
     private var renderingEnabled = true
-    
-    private var depthVisualizationEnabled = false
     
     private let processingQueue = DispatchQueue(label: "photo processing queue", attributes: [], autoreleaseFrequency: .workItem)
     
@@ -117,33 +81,9 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
         super.viewDidLoad()
         
         // Disable UI. The UI is enabled if and only if the session starts running.
-        cameraButton.isEnabled = false
         photoButton.isEnabled = false
         videoFilterOn = false
         videoFilterButton.setImage(#imageLiteral(resourceName: "ColorFilterOff"), for: .normal)
-        depthVisualizationOn = false
-        depthVisualizationButton.setImage(#imageLiteral(resourceName: "DepthVisualOff"), for: .normal)
-        depthVisualizationButton.isHidden = true
-        depthSmoothingOn = false
-        depthSmoothingButton.setImage(#imageLiteral(resourceName: "DepthSmoothOff"), for: .normal)
-        depthSmoothingButton.isHidden = true
-        mixFactorNameLabel.isHidden = true
-        mixFactorValueLabel.isHidden = true
-        mixFactorSlider.isHidden = true
-        depthDataMaxFrameRateValueLabel.isHidden = true
-        depthDataMaxFrameRateNameLabel.isHidden = true
-        depthDataMaxFrameRateSlider.isHidden = true
-        
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(focusAndExposeTap))
-        previewView.addGestureRecognizer(tapGesture)
-        
-        let leftSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(changeFilterSwipe))
-        leftSwipeGesture.direction = .left
-        previewView.addGestureRecognizer(leftSwipeGesture)
-        
-        let rightSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(changeFilterSwipe))
-        rightSwipeGesture.direction = .right
-        previewView.addGestureRecognizer(rightSwipeGesture)
         
         // Check video authorization status, video access is required
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -222,9 +162,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
                 self.session.startRunning()
                 self.isSessionRunning = self.session.isRunning
                 
-                DispatchQueue.main.async {
-                    self.updateDepthUIHidden()
-                }
                 
             case .notAuthorized:
                 DispatchQueue.main.async {
@@ -285,9 +222,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             if let videoFilter = self.videoFilter {
                 videoFilter.reset()
             }
-            self.videoDepthMixer.reset()
-            self.currentDepthPixelBuffer = nil
-            self.videoDepthConverter.reset()
             self.previewView.pixelBuffer = nil
             self.previewView.flushTextureCache()
         }
@@ -295,8 +229,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             if let photoFilter = self.photoFilter {
                 photoFilter.reset()
             }
-            self.photoDepthMixer.reset()
-            self.photoDepthConverter.reset()
         }
     }
     
@@ -360,9 +292,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
                     }
                     
                     if let unwrappedVideoDataOutputConnection = self.videoDataOutput.connection(with: .video) {
-                        DispatchQueue.main.async {
-                            self.updateDepthUIHidden()
-                        }
+                        
                         if let rotation = PreviewMetalView.Rotation(with: interfaceOrientation,
                                                                     videoOrientation: unwrappedVideoDataOutputConnection.videoOrientation,
                                                                     cameraPosition: self.videoInput.device.position) {
@@ -430,7 +360,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             let newValue = change?[.newKey] as AnyObject?
             guard let isSessionRunning = newValue?.boolValue else { return }
             DispatchQueue.main.async {
-                self.cameraButton.isEnabled = (isSessionRunning && self.videoDeviceDiscoverySession.devices.count > 1)
+//                self.cameraButton.isEnabled = (isSessionRunning && self.videoDeviceDiscoverySession.devices.count > 1)
                 self.photoButton.isEnabled = isSessionRunning
                 self.videoFilterButton.isEnabled = isSessionRunning
             }
@@ -441,6 +371,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     
     // MARK: - Session Management
     
+    #warning("セッションの設定する")
     // Call this on the SessionQueue
     private func configureSession() {
         if setupResult != .success {
@@ -494,14 +425,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             
             photoOutput.isHighResolutionCaptureEnabled = true
             
-            if depthVisualizationEnabled {
-                if photoOutput.isDepthDataDeliverySupported {
-                    photoOutput.isDepthDataDeliveryEnabled = true
-                } else {
-                    depthVisualizationEnabled = false
-                }
-            }
-            
         } else {
             print("Could not add photo output to the session")
             setupResult = .configurationFailed
@@ -509,46 +432,10 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             return
         }
         
-        // Add a depth data output
-        if session.canAddOutput(depthDataOutput) {
-            session.addOutput(depthDataOutput)
-            depthDataOutput.setDelegate(self, callbackQueue: dataOutputQueue)
-            depthDataOutput.isFilteringEnabled = false
-            if let connection = depthDataOutput.connection(with: .depthData) {
-                connection.isEnabled = depthVisualizationEnabled
-            } else {
-                print("No AVCaptureConnection")
-            }
-        } else {
-            print("Could not add depth data output to the session")
-            setupResult = .configurationFailed
-            session.commitConfiguration()
-            return
-        }
-        
-        if depthVisualizationEnabled {
-            // Use an AVCaptureDataOutputSynchronizer to synchronize the video data and depth data outputs.
-            // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the main output.
-            outputSynchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [videoDataOutput, depthDataOutput])
-            if let unwrappedOutputSynchronizer = outputSynchronizer {
-                unwrappedOutputSynchronizer.setDelegate(self, queue: dataOutputQueue)
-            }
-        } else {
-            outputSynchronizer = nil
-        }
-        
-        capFrameRate(videoDevice: videoDevice)
+//        capFrameRate(videoDevice: videoDevice)
         
         session.commitConfiguration()
         
-        DispatchQueue.main.async {
-            self.depthDataMaxFrameRateValueLabel.text = String(format: "%.1f", self.depthDataMaxFrameRateSlider.value)
-            self.mixFactorValueLabel.text = String(format: "%.1f", self.mixFactorSlider.value)
-            self.depthDataMaxFrameRateSlider.minimumValue = Float(1) / Float(CMTimeGetSeconds(videoDevice.activeVideoMaxFrameDuration))
-            self.depthDataMaxFrameRateSlider.maximumValue = Float(1) / Float(CMTimeGetSeconds(videoDevice.activeVideoMinFrameDuration))
-            self.depthDataMaxFrameRateSlider.value = (self.depthDataMaxFrameRateSlider.minimumValue
-                + self.depthDataMaxFrameRateSlider.maximumValue) / 2
-        }
     }
     
     @objc
@@ -657,282 +544,12 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     }
     
     // MARK: - IBAction Functions
-    
-    /// - Tag: VaryFrameRate
-    @IBAction private func changeDepthDataMaxFrameRate(_ sender: UISlider) {
-        let depthDataMaxFrameRate = sender.value
-        let newMinDuration = Double(1) / Double(depthDataMaxFrameRate)
-        let duration = CMTimeMaximum(videoInput.device.activeVideoMinFrameDuration, CMTimeMakeWithSeconds(newMinDuration, preferredTimescale: 1000))
-        
-        self.depthDataMaxFrameRateValueLabel.text = String(format: "%.1f", depthDataMaxFrameRate)
-        
-        do {
-            try self.videoInput.device.lockForConfiguration()
-            self.videoInput.device.activeDepthDataMinFrameDuration = duration
-            self.videoInput.device.unlockForConfiguration()
-        } catch {
-            print("Could not lock device for configuration: \(error)")
-        }
-    }
-    
-    /// - Tag: VaryMixFactor
-    @IBAction private func changeMixFactor(_ sender: UISlider) {
-        let mixFactor = sender.value
-        self.mixFactorValueLabel.text = String(format: "%.1f", mixFactor)
-        dataOutputQueue.async {
-            self.videoDepthMixer.mixFactor = mixFactor
-        }
-        processingQueue.async {
-            self.photoDepthMixer.mixFactor = mixFactor
-        }
-    }
-    
-    @IBAction private func changeFilterSwipe(_ gesture: UISwipeGestureRecognizer) {
-        let filteringEnabled = videoFilterOn
-        if filteringEnabled {
-            if gesture.direction == .left {
-                filterIndex = (filterIndex + 1) % filterRenderers.count
-            } else if gesture.direction == .right {
-                filterIndex = (filterIndex + filterRenderers.count - 1) % filterRenderers.count
-            }
-            
-            let newIndex = filterIndex
-            let filterDescription = filterRenderers[newIndex].description
-            updateFilterLabel(description: filterDescription)
-            
-            // Switch renderers
-            dataOutputQueue.async {
-                if let filter = self.videoFilter {
-                    filter.reset()
-                }
-                self.videoFilter = self.filterRenderers[newIndex]
-            }
-            
-            processingQueue.async {
-                if let filter = self.photoFilter {
-                    filter.reset()
-                }
-                self.photoFilter = self.photoRenderers[newIndex]
-            }
-        }
-    }
-    
-    @IBAction private func focusAndExposeTap(_ gesture: UITapGestureRecognizer) {
-        let location = gesture.location(in: previewView)
-        guard let texturePoint = previewView.texturePointForView(point: location) else {
-            return
-        }
-        
-        let textureRect = CGRect(origin: texturePoint, size: .zero)
-        let deviceRect = videoDataOutput.metadataOutputRectConverted(fromOutputRect: textureRect)
-        focus(with: .autoFocus, exposureMode: .autoExpose, at: deviceRect.origin, monitorSubjectAreaChange: true)
-    }
-    
     @objc
     func subjectAreaDidChange(notification: NSNotification) {
         let devicePoint = CGPoint(x: 0.5, y: 0.5)
         focus(with: .continuousAutoFocus, exposureMode: .continuousAutoExposure, at: devicePoint, monitorSubjectAreaChange: false)
     }
-    
-    @IBAction private func changeCamera(_ sender: UIButton) {
-        cameraButton.isEnabled = false
-        photoButton.isEnabled = false
-        
-        dataOutputQueue.sync {
-            renderingEnabled = false
-            if let filter = videoFilter {
-                filter.reset()
-            }
-            videoDepthMixer.reset()
-            currentDepthPixelBuffer = nil
-            videoDepthConverter.reset()
-            previewView.pixelBuffer = nil
-        }
-        
-        processingQueue.async {
-            if let filter = self.photoFilter {
-                filter.reset()
-            }
-            self.photoDepthMixer.reset()
-            self.photoDepthConverter.reset()
-        }
-        
-        let interfaceOrientation = statusBarOrientation
-        var depthEnabled = depthVisualizationOn
-        
-        sessionQueue.async {
-            let currentVideoDevice = self.videoInput.device
-            var preferredPosition = AVCaptureDevice.Position.unspecified
-            switch currentVideoDevice.position {
-            case .unspecified, .front:
-                preferredPosition = .back
-                
-            case .back:
-                preferredPosition = .front
-            @unknown default:
-                fatalError("Unknown video device position.")
-            }
-            
-            let devices = self.videoDeviceDiscoverySession.devices
-            if let videoDevice = devices.first(where: { $0.position == preferredPosition }) {
-                var videoInput: AVCaptureDeviceInput
-                do {
-                    videoInput = try AVCaptureDeviceInput(device: videoDevice)
-                } catch {
-                    print("Could not create video device input: \(error)")
-                    self.dataOutputQueue.async {
-                        self.renderingEnabled = true
-                    }
-                    return
-                }
-                self.session.beginConfiguration()
-                
-                // Remove the existing device input first, since using the front and back camera simultaneously is not supported.
-                self.session.removeInput(self.videoInput)
-                
-                if self.session.canAddInput(videoInput) {
-                    NotificationCenter.default.removeObserver(self,
-                                                              name: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange,
-                                                              object: currentVideoDevice)
-                    NotificationCenter.default.addObserver(self,
-                                                           selector: #selector(self.subjectAreaDidChange),
-                                                           name: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange,
-                                                           object: videoDevice)
-                    
-                    self.session.addInput(videoInput)
-                    self.videoInput = videoInput
-                } else {
-                    print("Could not add video device input to the session")
-                    self.session.addInput(self.videoInput)
-                }
-                
-                if let unwrappedPhotoOutputConnection = self.photoOutput.connection(with: .video) {
-                    self.photoOutput.connection(with: .video)!.videoOrientation = unwrappedPhotoOutputConnection.videoOrientation
-                }
-                
-                if self.photoOutput.isDepthDataDeliverySupported {
-                    self.photoOutput.isDepthDataDeliveryEnabled = depthEnabled
-                    if let unwrappedDepthDataOutputConnection = self.depthDataOutput.connection(with: .depthData) {
-                        unwrappedDepthDataOutputConnection.isEnabled = depthEnabled
-                    }
-                    if depthEnabled && self.outputSynchronizer == nil {
-                        self.outputSynchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [self.videoDataOutput, self.depthDataOutput])
-                        if let unwrappedOutputSynchronizer = self.outputSynchronizer {
-                            unwrappedOutputSynchronizer.setDelegate(self, queue: self.dataOutputQueue)
-                        }
-                    }
-                    
-                    // Cap the video framerate at the max depth framerate
-                    if let frameDuration = videoDevice.activeDepthDataFormat?.videoSupportedFrameRateRanges.first?.minFrameDuration {
-                        do {
-                            try videoDevice.lockForConfiguration()
-                            videoDevice.activeVideoMinFrameDuration = frameDuration
-                            videoDevice.unlockForConfiguration()
-                        } catch {
-                            print("Could not lock device for configuration: \(error)")
-                        }
-                    }
-                } else {
-                    self.outputSynchronizer = nil
-                    depthEnabled = false
-                }
-                
-                self.session.commitConfiguration()
-            }
-            
-            let videoPosition = self.videoInput.device.position
-            
-            if let unwrappedVideoDataOutputConnection = self.videoDataOutput.connection(with: .video) {
-                let rotation = PreviewMetalView.Rotation(with: interfaceOrientation,
-                                                         videoOrientation: unwrappedVideoDataOutputConnection.videoOrientation,
-                                                         cameraPosition: videoPosition)
-                
-                self.previewView.mirroring = (videoPosition == .front)
-                if let rotation = rotation {
-                    self.previewView.rotation = rotation
-                }
-            }
-            
-            self.dataOutputQueue.async {
-                self.renderingEnabled = true
-                self.depthVisualizationEnabled = depthEnabled
-            }
-            
-            DispatchQueue.main.async {
-                self.updateDepthUIHidden()
-                self.cameraButton.isEnabled = true
-                self.photoButton.isEnabled = true
-            }
-        }
-    }
-    
-    @IBAction private func toggleDepthVisualization() {
-        depthVisualizationOn = !depthVisualizationOn
-        var depthEnabled = depthVisualizationOn
-        
-        sessionQueue.async {
-            self.session.beginConfiguration()
-            
-            if self.photoOutput.isDepthDataDeliverySupported {
-                self.photoOutput.isDepthDataDeliveryEnabled = depthEnabled
-            } else {
-                depthEnabled = false
-            }
-            
-            if let unwrappedDepthConnection = self.depthDataOutput.connection(with: .depthData) {
-                unwrappedDepthConnection.isEnabled = depthEnabled
-            }
-            
-            if depthEnabled {
-                // Use an AVCaptureDataOutputSynchronizer to synchronize the video data and depth data outputs.
-                // The first output in the dataOutputs array, in this case the AVCaptureVideoDataOutput, is the main output.
-                self.outputSynchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [self.videoDataOutput, self.depthDataOutput])
-                
-                if let unwrappedOutputSynchronizer = self.outputSynchronizer {
-                    unwrappedOutputSynchronizer.setDelegate(self, queue: self.dataOutputQueue)
-                }
-            } else {
-                self.outputSynchronizer = nil
-            }
-            
-            self.session.commitConfiguration()
-            
-            DispatchQueue.main.async {
-                self.updateDepthUIHidden()
-            }
-            
-            self.dataOutputQueue.async {
-                if !depthEnabled {
-                    self.videoDepthConverter.reset()
-                    self.videoDepthMixer.reset()
-                    self.currentDepthPixelBuffer = nil
-                }
-                self.depthVisualizationEnabled = depthEnabled
-            }
-            
-            self.processingQueue.async {
-                if !depthEnabled {
-                    self.photoDepthMixer.reset()
-                    self.photoDepthConverter.reset()
-                }
-            }
-        }
-    }
-    
-    /// - Tag: SmoothDepthData
-    @IBAction private func toggleDepthSmoothing() {
-        
-        depthSmoothingOn = !depthSmoothingOn
-        let smoothingEnabled = depthSmoothingOn
-        
-        let stateImage = UIImage(named: smoothingEnabled ? "DepthSmoothOn" : "DepthSmoothOff")
-        self.depthSmoothingButton.setImage(stateImage, for: .normal)
-        
-        sessionQueue.async {
-            self.depthDataOutput.isFilteringEnabled = smoothingEnabled
-        }
-    }
-    
+    #warning("フィルターのオンオフ")
     @IBAction private func toggleFiltering() {
         
         videoFilterOn = !videoFilterOn
@@ -972,41 +589,19 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             }
         }
     }
-    
+    #warning("写真を撮る")
     @IBAction private func capturePhoto(_ photoButton: UIButton) {
-        let depthEnabled = depthVisualizationOn
+//        let depthEnabled = depthVisualizationOn
         
         sessionQueue.async {
             let photoSettings = AVCapturePhotoSettings(format: [kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)])
-            if depthEnabled && self.photoOutput.isDepthDataDeliverySupported {
-                photoSettings.isDepthDataDeliveryEnabled = true
-                photoSettings.embedsDepthDataInPhoto = false
-            } else {
-                photoSettings.isDepthDataDeliveryEnabled = depthEnabled
-            }
+            photoSettings.isDepthDataDeliveryEnabled = false
             
             self.photoOutput.capturePhoto(with: photoSettings, delegate: self)
         }
     }
     
     // MARK: - UI Utility Functions
-    
-    func updateDepthUIHidden() {
-        self.depthVisualizationButton.isHidden = !self.photoOutput.isDepthDataDeliverySupported
-        self.depthVisualizationButton.setImage(UIImage(named: depthVisualizationOn ? "DepthVisualOn" : "DepthVisualOff"),
-                                               for: .normal)
-        self.depthSmoothingOn = depthVisualizationOn
-        self.depthSmoothingButton.isHidden = !self.depthSmoothingOn
-        self.depthSmoothingButton.setImage(UIImage(named: depthVisualizationOn ? "DepthSmoothOn" : "DepthSmoothOff"),
-                                           for: .normal)
-        self.mixFactorNameLabel.isHidden = !depthVisualizationOn
-        self.mixFactorValueLabel.isHidden = !depthVisualizationOn
-        self.mixFactorSlider.isHidden = !depthVisualizationOn
-        self.depthDataMaxFrameRateNameLabel.isHidden = !depthVisualizationOn
-        self.depthDataMaxFrameRateValueLabel.isHidden = !depthVisualizationOn
-        self.depthDataMaxFrameRateSlider.isHidden = !depthVisualizationOn
-    }
-    
     func updateFilterLabel(description: String) {
         filterLabel.text = description
         filterLabel.alpha = 0.0
@@ -1022,7 +617,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     }
     
     // MARK: - Video Data Output Delegate
-    
+    #warning("ビデオ出力処理")
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         processVideo(sampleBuffer: sampleBuffer)
     }
@@ -1056,70 +651,14 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             finalVideoPixelBuffer = filteredBuffer
         }
         
-        if depthVisualizationEnabled {
-            if !videoDepthMixer.isPrepared {
-                videoDepthMixer.prepare(with: formatDescription, outputRetainedBufferCountHint: 3)
-            }
-            
-            if let depthBuffer = currentDepthPixelBuffer {
-                
-                // Mix the video buffer with the last depth data received.
-                guard let mixedBuffer = videoDepthMixer.mix(videoPixelBuffer: finalVideoPixelBuffer, depthPixelBuffer: depthBuffer) else {
-                    print("Unable to combine video and depth")
-                    return
-                }
-                
-                finalVideoPixelBuffer = mixedBuffer
-            }
-        }
-        
         previewView.pixelBuffer = finalVideoPixelBuffer
     }
     
     // MARK: - Depth Data Output Delegate
     
-    /// - Tag: StreamDepthData
-    func depthDataOutput(_ depthDataOutput: AVCaptureDepthDataOutput, didOutput depthData: AVDepthData, timestamp: CMTime, connection: AVCaptureConnection) {
-        processDepth(depthData: depthData)
-    }
-    
-    func processDepth(depthData: AVDepthData) {
-        if !renderingEnabled {
-            return
-        }
-        
-        if !depthVisualizationEnabled {
-            return
-        }
-        
-        if !videoDepthConverter.isPrepared {
-            var depthFormatDescription: CMFormatDescription?
-            CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
-                                                         imageBuffer: depthData.depthDataMap,
-                                                         formatDescriptionOut: &depthFormatDescription)
-            if let unwrappedDepthFormatDescription = depthFormatDescription {
-                videoDepthConverter.prepare(with: unwrappedDepthFormatDescription, outputRetainedBufferCountHint: 2)
-            }
-        }
-        
-        guard let depthPixelBuffer = videoDepthConverter.render(pixelBuffer: depthData.depthDataMap) else {
-            print("Unable to process depth")
-            return
-        }
-        
-        currentDepthPixelBuffer = depthPixelBuffer
-    }
-    
     // MARK: - Video + Depth Output Synchronizer Delegate
     
     func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer, didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection) {
-        
-        if let syncedDepthData: AVCaptureSynchronizedDepthData = synchronizedDataCollection.synchronizedData(for: depthDataOutput) as? AVCaptureSynchronizedDepthData {
-            if !syncedDepthData.depthDataWasDropped {
-                let depthData = syncedDepthData.depthData
-                processDepth(depthData: depthData)
-            }
-        }
         
         if let syncedVideoData: AVCaptureSynchronizedSampleBufferData = synchronizedDataCollection.synchronizedData(for: videoDataOutput) as? AVCaptureSynchronizedSampleBufferData {
             if !syncedVideoData.sampleBufferWasDropped {
@@ -1128,10 +667,11 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             }
         }
     }
-    
+    #warning("写真の出力")
     // MARK: - Photo Output Delegate
     func photoOutput(_ output: AVCapturePhotoOutput, willCapturePhotoFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
         flashScreen()
+        AudioServicesDisposeSystemSoundID(1108)
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
@@ -1153,6 +693,7 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
         
         processingQueue.async {
             var finalPixelBuffer = photoPixelBuffer
+            #warning("フィルターをかける")
             if let filter = self.photoFilter {
                 if !filter.isPrepared {
                     if let unwrappedPhotoFormatDescription = photoFormatDescription {
@@ -1165,47 +706,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
                     return
                 }
                 finalPixelBuffer = filteredPixelBuffer
-            }
-            
-            if let depthData = photo.depthData {
-                let depthPixelBuffer = depthData.depthDataMap
-                
-                if !self.photoDepthConverter.isPrepared {
-                    var depthFormatDescription: CMFormatDescription?
-                    CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault,
-                                                                 imageBuffer: depthPixelBuffer,
-                                                                 formatDescriptionOut: &depthFormatDescription)
-                    
-                    /*
-                     outputRetainedBufferCountHint is the number of pixel buffers we expect to hold on to from the renderer.
-                     This value informs the renderer how to size its buffer pool and how many pixel buffers to preallocate.
-                     Allow 3 frames of latency to cover the dispatch_async call.
-                     */
-                    if let unwrappedDepthFormatDescription = depthFormatDescription {
-                        self.photoDepthConverter.prepare(with: unwrappedDepthFormatDescription, outputRetainedBufferCountHint: 3)
-                    }
-                }
-                
-                guard let convertedDepthPixelBuffer = self.photoDepthConverter.render(pixelBuffer: depthPixelBuffer) else {
-                    print("Unable to convert depth pixel buffer")
-                    return
-                }
-                
-                if !self.photoDepthMixer.isPrepared {
-                    if let unwrappedPhotoFormatDescription = photoFormatDescription {
-                        self.photoDepthMixer.prepare(with: unwrappedPhotoFormatDescription, outputRetainedBufferCountHint: 2)
-                    }
-                }
-                
-                // Combine image and depth map
-                guard let mixedPixelBuffer = self.photoDepthMixer.mix(videoPixelBuffer: finalPixelBuffer,
-                                                                      depthPixelBuffer: convertedDepthPixelBuffer)
-                    else {
-                        print("Unable to mix depth and photo buffers")
-                        return
-                }
-                
-                finalPixelBuffer = mixedPixelBuffer
             }
             
             let metadataAttachments: CFDictionary = photo.metadata as CFDictionary
@@ -1231,20 +731,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
     }
     
     // MARK: - Utilities
-    private func capFrameRate(videoDevice: AVCaptureDevice) {
-        if self.photoOutput.isDepthDataDeliverySupported {
-            // Cap the video framerate at the max depth framerate.
-            if let frameDuration = videoDevice.activeDepthDataFormat?.videoSupportedFrameRateRanges.first?.minFrameDuration {
-                do {
-                    try videoDevice.lockForConfiguration()
-                    videoDevice.activeVideoMinFrameDuration = frameDuration
-                    videoDevice.unlockForConfiguration()
-                } catch {
-                    print("Could not lock device for configuration: \(error)")
-                }
-            }
-        }
-    }
     
     private func focus(with focusMode: AVCaptureDevice.FocusMode, exposureMode: AVCaptureDevice.ExposureMode, at devicePoint: CGPoint, monitorSubjectAreaChange: Bool) {
         
