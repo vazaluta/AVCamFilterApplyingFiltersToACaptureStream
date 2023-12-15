@@ -432,8 +432,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVC
             return
         }
         
-//        capFrameRate(videoDevice: videoDevice)
-        
         session.commitConfiguration()
         
     }
